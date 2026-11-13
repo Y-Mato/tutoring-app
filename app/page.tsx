@@ -15,7 +15,7 @@ export default function Home() {
     }
   }, [loading, user, router]);
 
-  if (!loading || !user) {
+  if (loading || !user) {
     return <p className="p-6">確認中...</p>;
   }
 
