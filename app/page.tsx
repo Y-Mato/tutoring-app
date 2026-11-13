@@ -10,7 +10,7 @@ export default function Home() {
   const { user, profile, loading} = useAuth();
 
   useEffect(() => {
-    if (loading && !user) {
+    if (!loading && !user) {
         router.replace("/login");
     }
   }, [loading, user, router]);
