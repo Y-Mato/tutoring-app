@@ -6,6 +6,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
+import Link from "next/link";
 
 // Firebase のエラーを日本語のメッセージにする
 function toMessage(err: unknown): string {
@@ -85,6 +86,11 @@ export default function LoginPage() {
         >
           {submitting ? "ログイン中…" : "ログイン"}
         </button>
+
+        <Link href="/signup" className="text-sm text-blue-600 underline">
+          招待コードをお持ちの方はこちら
+        </Link>
+
       </form>
     </main>
   );
