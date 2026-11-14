@@ -31,11 +31,12 @@ export default function SettingsPage() {
       ) : (
         <ul className="flex flex-col gap-2">
           {students.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 rounded border p-3">
-                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: s.color }} />
-                <span>{s.name}</span>
+            <li key={s.id}>
+                <Link href={`/settings/students/${s.id}`} className="flex items-center gap-2 rounded border p-3">
+                    <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: s.color }} />
+                    <span>{s.name}</span>
+                </Link>
             </li>
-
           ))}
         </ul>
       )}
