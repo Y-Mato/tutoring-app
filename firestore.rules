@@ -54,5 +54,29 @@ service cloud.firestore {
         && request.resource.data.usedBy == request.auth.uid
         && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.inviteCode == code;
     }
+
+        // --- students（生徒と契約内容） ---
+    function isValidStudent(data) {
+      return data.keys().hasOnly(['name', 'color', 'parentUid', 'regularSlots', 'rates'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 50
+        && data.color is string && data.color.matches('^#[0-9a-fA-F]{6}$')
+        && (data.parentUid == null || data.parentUid is string)
+        && data.regularSlots is list && data.regularSlots.size() <= 7
+        && data.rates is map
+        && data.rates.keys().hasOnly(['regularFee', 'regularMinutes', 'hourlyRate', 'unitMinutes'])
+        && data.rates.regularFee is int && data.rates.regularFee >= 0
+        && data.rates.regularMinutes is int && data.rates.regularMinutes > 0
+        && data.rates.hourlyRate is int && data.rates.hourlyRate >= 0
+        && data.rates.unitMinutes is int && data.rates.unitMinutes > 0;
+    }
+
+    match /students/{studentId} {
+      // 先生は全員分、保護者は自分の子だけ読める
+      allow read: if isTeacher()
+        || (isSignedIn() && resource.data.parentUid == request.auth.uid);
+      allow create, update: if isTeacher() && isValidStudent(request.resource.data);
+      allow delete: if isTeacher();
+    }
+
   }
 }
