@@ -36,7 +36,6 @@ export default function Home() {
       <LogoutButton />
     </header>
     
-    {/* ② role で切り替える */}
     {profile.role === "teacher" ? (
       <TeacherHome />
     ): profile.role === "parent" ? (

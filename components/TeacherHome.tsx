@@ -1,3 +1,5 @@
+import { InviteCodeIssuer } from "./InviteCodeIssuer";
+
 export function TeacherHome() {
   return (
     <div className="flex flex-col gap-4">
@@ -15,6 +17,8 @@ export function TeacherHome() {
         <h2 className="font-bold">今月の収入合計</h2>
         <p className="text-sm text-gray-500">準備中</p>
       </section>
+
+      <InviteCodeIssuer />
 
     </div>
   );
