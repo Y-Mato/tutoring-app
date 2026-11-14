@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, getDoc} from "firebase/firestore";
+import { doc, onSnapshot} from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 // users コレクションの形（DESIGN.md に合わせる）
@@ -23,30 +23,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
-      setUser(firebaseUser)
+  // users ドキュメントの見張りを止める関数（見張っていないときは null）
+  let unsubscribeProfile: (() => void) | null = null;
 
-      if (firebaseUser == null) {
-        setProfile(null)
-      }else {
-        try {
-            const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-            if (snap.exists()) {
-                setProfile(snap.data() as UserProfile);
-            }else {
-                setProfile(null);
-            }
-        }catch (e) {
-            console.error("users ドキュメントの読み込みに失敗しました", e);
-            setProfile(null);
-        }
-      }
+  const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    // ログインしている人が変わったら、前の人の見張りを止める
+    unsubscribeProfile?.();
+    unsubscribeProfile = null;
+
+    setUser(firebaseUser);
+
+    if (firebaseUser == null) {
+      setProfile(null);
       setLoading(false);
-    
-    });
-    return unsubscribe;
-  }, []);
+      return;
+    }
+
+    setLoading(true);
+    unsubscribeProfile = onSnapshot(
+      doc(db, "users", firebaseUser.uid),
+      // 読めたとき（最初の1回と、変わるたび）
+      (snap) => {
+        setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
+        setLoading(false);
+      },
+      // 読めなかったとき
+      (err) => {
+        console.error("users ドキュメントの読み込みに失敗しました", err);
+        setProfile(null);
+        setLoading(false);
+      },
+    );
+  });
+
+  // 画面が消えるときは、両方の見張りを止める
+  return () => {
+    unsubscribeProfile?.();
+    unsubscribeAuth();
+  };
+}, []);
+
 
   return <AuthContext value={{ user, profile, loading }}>{children}</AuthContext>;
 }
