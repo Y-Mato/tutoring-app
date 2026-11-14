@@ -4,6 +4,8 @@ import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { LogoutButton } from "@/components/LogoutButton";
+import { TeacherHome } from "@/components/TeacherHome";
+import { ParentHome } from "@/components/ParentHome";
 
 export default function Home() {
   const router = useRouter();
@@ -28,9 +30,22 @@ export default function Home() {
     );
   }
   return (
-    <main className="p-6">
-      <p>{profile.name}さん ({profile.role}) </p>
+  <main className="flex flex-col gap-6 p-6">
+    <header className="flex items-center justify-between">
+      <p>{profile.name}さん</p>
       <LogoutButton />
-    </main>
-  );
+    </header>
+    
+    {/* ② role で切り替える */}
+    {profile.role === "teacher" ? (
+      <TeacherHome />
+    ): profile.role === "parent" ? (
+      <ParentHome />
+    ): (
+      <p>アカウントの種類が正しくありません</p>
+    )}
+    
+  </main>
+);
+
 }
