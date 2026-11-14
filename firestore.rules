@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- 共通の関数 ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTeacher() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function invitePath(code) {
+      return /databases/$(database)/documents/invites/$(code);
+    }
+
+    // --- users ---
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isTeacher());
+
+      // 保護者の初回登録：未使用の招待コードを、同じバッチで自分が使用済みにしているときだけ
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['role', 'name', 'studentIds', 'inviteCode'])
+        && request.resource.data.role == 'parent'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 50
+        && request.resource.data.studentIds == []
+        && request.resource.data.inviteCode is string
+        && get(invitePath(request.resource.data.inviteCode)).data.used == false
+        && getAfter(invitePath(request.resource.data.inviteCode)).data.usedBy == uid;
+    }
+
+    // --- invites（招待コード） ---
+    match /invites/{code} {
+      allow create: if isTeacher()
+        && request.resource.data.keys().hasOnly(['used', 'usedBy', 'createdAt'])
+        && request.resource.data.used == false
+        && request.resource.data.usedBy == null
+        && request.resource.data.createdAt == request.time;
+
+      // コードを知っていれば1件は読める（登録前の確認用）。一覧は先生だけ
+      allow get: if true;
+      allow list: if isTeacher();
+
+      // 使用済みにする：未使用→使用済み、usedBy は自分、同じバッチで自分の users を作っているときだけ
+      allow update: if isSignedIn()
+        && resource.data.used == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy'])
+        && request.resource.data.used == true
+        && request.resource.data.usedBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.inviteCode == code;
+    }
+  }
+}
