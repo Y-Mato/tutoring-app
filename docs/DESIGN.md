@@ -73,7 +73,8 @@
 
 | コレクション | 役割 | 主なフィールド |
 | --- | --- | --- |
-| users | ログインする人 | role（teacher / parent）、name、studentIds、fcmToken |
+| users | ログインする人（ドキュメントID＝Auth の UID） | role（teacher / parent）、name、studentIds、inviteCode（保護者のみ）、fcmToken |
+| invites | 保護者の招待コード（ドキュメントID＝コード） | used、usedBy、createdAt |
 | students | 生徒と契約内容 | name、color、parentUid、regularSlots（曜日・開始・終了の配列）、rates（通常コマ単価・分数、時給、計算単位） |
 | lessons | 1コマずつの予定と実績 | studentId、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy、makeupForId、fee |
 | availabilities | 先生の出勤可能枠 | date、start、end |
@@ -89,6 +90,30 @@
 - 保護者：自分の子の studentId を持つデータだけ読める
 - 保護者が書けるのは、申請の作成、自分の子のコマの休み設定、メッセージ送信の3つだけ
 - 料金（fee）は保護者が書き換えられないようにする
+- 先生アカウントはコンソールで手作業で作る。アプリから作れるのは role が parent の users だけにして、だれでも teacher になれる穴を作らない
+- 招待コードは、コードを知っていれば1件だけ読める（登録前の確認用）。一覧は先生だけが取れる
+- 保護者の初回登録では、users の作成と招待コードの使用済み化を同じバッチで書く。Rules の `get`（書き込み前）と `getAfter`（書き込み後）で、2つの書き込みがそろっているかをお互いに確かめる
+
+## ログインと招待コード
+
+### 招待コード
+
+- 先生が発行する。8文字で、紛らわしい `0 O 1 I L` を除いた英大文字と数字（31文字）を使う。約8,500億通り
+- 乱数は推測されにくい `crypto.getRandomValues` で作る（`Math.random` は使わない）
+- 1回だけ使える。生徒との紐付け（studentIds）は、生徒登録（開発ステップ2）で先生が行う
+
+### 保護者の登録の流れ
+
+1. 招待コードを読み、存在していて未使用か確かめる（先にアカウントを作ると、コードが間違っていたときに毎回消す必要があるため）
+2. Authentication でアカウントを作る
+3. バッチで `users/{uid}`（role: parent）の作成と、`invites/{コード}` の使用済み化を書く
+4. 3 が失敗したら、2 で作ったアカウントを削除する（ログインできるのに users がない状態を残さない）
+
+### ログイン状態の管理
+
+- `AuthProvider`（React Context）で、ログイン中のユーザーと users ドキュメント（profile）を全画面に配る
+- profile は `getDoc` ではなく `onSnapshot` で読み続ける。登録直後は「users がまだない」という読み込み結果が、作成後の結果より遅れて届き、上書きしてしまうことがあるため。role の変更も再読み込みなしで反映される
+- 画面の保護（未ログインなら /login へ移動）はブラウザ側で行う。Firebase のログイン状態はブラウザにしかないため。データは Security Rules で守るので、画面を無理やり表示されても中身は読めない
 
 ## 主要ロジック
 
