@@ -33,3 +33,22 @@ export const DEFAULT_STUDENT: StudentData = {
   regularSlots: [],
   rates: { regularFee: 2000, regularMinutes: 80, hourlyRate: 1500, unitMinutes: 30 },
 };
+
+// 1コマ（lessons コレクション）
+export type LessonType = "regular" | "extra" | "makeup";
+export type LessonStatus = "scheduled" | "cancelled" | "done";
+
+export type LessonData = {
+  studentId: string;
+  parentUid: string | null; // 保護者が読めるかどうかの判定に使う（students からコピー）
+  date: string;             // "2026-11-16"
+  start: string;            // "17:00"
+  end: string;              // "18:20"
+  type: LessonType;
+  status: LessonStatus;
+  cancelledBy: string | null;
+  makeupForId: string | null;
+  fee: number;              // 作った時点の料金（あとで単価を変えても変わらない）
+};
+
+export type Lesson = LessonData & { id: string };

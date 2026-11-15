@@ -6,6 +6,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { StudentForm } from "@/components/StudentForm";
 import type { StudentData } from "@/lib/types";
+import { syncRegularLessons } from "@/lib/syncLessons";
 
 export default function EditStudentPage() {
     const router = useRouter();
@@ -26,6 +27,8 @@ export default function EditStudentPage() {
 
     async function handleUpdate(values: StudentData) {
         await updateDoc(doc(db, "students", id), values);
+        await syncRegularLessons(id, values);
+
         router.push("/settings");
     }
 

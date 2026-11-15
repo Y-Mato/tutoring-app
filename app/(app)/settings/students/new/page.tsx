@@ -6,13 +6,16 @@ import { db } from "@/lib/firebase";
 import { StudentForm } from "@/components/StudentForm";
 import { DEFAULT_STUDENT, type StudentData } from "@/lib/types";
 import { useState } from "react";
+import { syncRegularLessons } from "@/lib/syncLessons";
 
 export default function NewStudentPage() {
   const router = useRouter();
   const [formKey, setFormKey] = useState(0);
+  
 
   async function handleCreate(values: StudentData) {
-    await addDoc(collection(db, "students"), values);
+    const ref = await addDoc(collection(db, "students"), values);
+    await syncRegularLessons(ref.id, values);
     setFormKey((k) => k + 1);   // フォームを作り直す
     router.push("/settings");
   }

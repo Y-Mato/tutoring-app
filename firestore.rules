@@ -78,5 +78,15 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // --- lessons（1コマずつの予定と実績） ---
+    match /lessons/{lessonId} {
+      // 先生は全部、保護者は自分の子のコマだけ読める
+      allow read: if isTeacher()
+        || (isSignedIn() && resource.data.parentUid == request.auth.uid);
+      // 書き込みは今は先生だけ（保護者の休み設定は Issue #3 で足す）
+      allow write: if isTeacher();
+    }
+
+
   }
 }
