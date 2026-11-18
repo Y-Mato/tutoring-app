@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { RegularSlot, StudentData } from "@/lib/types";
+import type { Rates, RegularSlot, StudentData } from "@/lib/types";
 
 type Props = {
     initialValues: StudentData;
@@ -13,12 +13,34 @@ type Props = {
 
 const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
+// 単価の入力欄（入力中は文字列で持つ）
+type RateInputs = Record<keyof Rates, string>;
+
+const RATE_FIELDS: { key: keyof Rates; label: string }[] = [
+    { key: "regularFee", label: "通常コマの料金（円）" },
+    { key: "regularMinutes", label: "通常コマの長さ（分）" },
+    { key: "hourlyRate", label: "追加コマの時給（円）" },
+    { key: "unitMinutes", label: "追加コマの計算単位（分）" },
+];
+
+// 全角数字を半角にして、数字以外を取り除く（例："２,０００円" → "2000"）
+function toDigits(value: string): string {
+    return value
+        .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+        .replace(/[^0-9]/g, "");
+}
+
 
 export function StudentForm({ initialValues, submitLabel, onSubmit }: Props) {
     const [name, setName] = useState(initialValues.name);
     const [color, setColor] = useState(initialValues.color);
     const [parentUid, setParentUid] = useState(initialValues.parentUid);
-    const [rates, setRates] = useState(initialValues.rates);
+    const [rateInputs, setRateInputs] = useState<RateInputs>({
+        regularFee: String(initialValues.rates.regularFee),
+        regularMinutes: String(initialValues.rates.regularMinutes),
+        hourlyRate: String(initialValues.rates.hourlyRate),
+        unitMinutes: String(initialValues.rates.unitMinutes),
+    });
     const [slots, setSlots] = useState<RegularSlot[]>(initialValues.regularSlots);
     const [parents, setParents] = useState<{ uid: string; name: string }[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -40,6 +62,19 @@ export function StudentForm({ initialValues, submitLabel, onSubmit }: Props) {
             setError("終了時刻は開始時刻より後にしてください");
             return;
         }
+
+        if (RATE_FIELDS.some(({ key }) => toDigits(rateInputs[key]) === "")) {
+            setError("単価をすべて入力してください");
+            return;
+        }
+
+        // 保存するときに、文字列 → 数値に直す
+        const rates: Rates = {
+            regularFee: Number(toDigits(rateInputs.regularFee)),
+            regularMinutes: Number(toDigits(rateInputs.regularMinutes)),
+            hourlyRate: Number(toDigits(rateInputs.hourlyRate)),
+            unitMinutes: Number(toDigits(rateInputs.unitMinutes)),
+        };
 
         setSubmitting(true);
         try {
@@ -156,50 +191,20 @@ export function StudentForm({ initialValues, submitLabel, onSubmit }: Props) {
 
             <fieldset className="flex flex-col gap-2 rounded border p-3">
                 <legend className="text-sm">単価</legend>
-                <label className="flex items-center justify-between gap-2">
-                    <span className="text-sm">通常コマの料金（円）</span>
-                    <input
-                        type="number"
-                        min={0}
-                        value={rates.regularFee}
-                        onChange={(e) => setRates({ ...rates, regularFee: Number(e.target.value) })}
-                        className="w-28 rounded border px-2 py-1 text-right"
-                    />
-                </label>
 
-                <label className="flex items-center justify-between gap-2">
-                    <span className="text-sm">通常コマの長さ（分）</span>
-                    <input
-                        type="number"
-                        min={0}
-                        value={rates.regularMinutes}
-                        onChange={(e) => setRates({ ...rates, regularMinutes: Number(e.target.value) })}
-                        className="w-28 rounded border px-2 py-1 text-right"
-                    />
-                </label>
-
-                <label className="flex items-center justify-between gap-2">
-                    <span className="text-sm">追加コマの時給（円）</span>
-                    <input
-                        type="number"
-                        min={0}
-                        value={rates.hourlyRate}
-                        onChange={(e) => setRates({ ...rates, hourlyRate: Number(e.target.value) })}
-                        className="w-28 rounded border px-2 py-1 text-right"
-                    />
-                </label>
-
-                <label className="flex items-center justify-between gap-2">
-                    <span className="text-sm">追加コマの計算単位（分）</span>
-                    <input
-                        type="number"
-                        min={0}
-                        value={rates.unitMinutes}
-                        onChange={(e) => setRates({ ...rates, unitMinutes: Number(e.target.value) })}
-                        className="w-28 rounded border px-2 py-1 text-right"
-                    />
-                </label>
-
+                {RATE_FIELDS.map(({ key, label }) => (
+                    <label key={key} className="flex items-center justify-between gap-2">
+                        <span className="text-sm">{label}</span>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            value={rateInputs[key]}
+                            onChange={(e) => setRateInputs({ ...rateInputs, [key]: e.target.value })}
+                            onBlur={(e) => setRateInputs({ ...rateInputs, [key]: toDigits(e.target.value) })}
+                            className="w-28 rounded border px-2 py-1 text-right"
+                        />
+                    </label>
+                ))}
             </fieldset>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
