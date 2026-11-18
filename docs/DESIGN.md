@@ -73,10 +73,10 @@
 
 | コレクション | 役割 | 主なフィールド |
 | --- | --- | --- |
-| users | ログインする人（ドキュメントID＝Auth の UID） | role（teacher / parent）、name、studentIds、inviteCode（保護者のみ）、fcmToken |
+| users | ログインする人（ドキュメントID＝Auth の UID） | role（teacher / parent）、name、studentIds（今は使っていない。登録時は空配列）、inviteCode（保護者のみ）、fcmToken |
 | invites | 保護者の招待コード（ドキュメントID＝コード） | used、usedBy、createdAt |
 | students | 生徒と契約内容 | name、color、parentUid、regularSlots（曜日・開始・終了の配列）、rates（通常コマ単価・分数、時給、計算単位） |
-| lessons | 1コマずつの予定と実績 | studentId、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy、makeupForId、fee |
+| lessons | 1コマずつの予定と実績 | studentId、parentUid（students からコピー）、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy、makeupForId、fee |
 | availabilities | 先生の出勤可能枠 | date、start、end |
 | requests | 追加コマ・振替の申請 | studentId、availabilityId、type（extra / makeup）、start、end、makeupForId、status（pending / approved / rejected）、reason |
 | records | 授業記録 | studentId、lessonId、date、condition（様子）、homework |
@@ -87,12 +87,18 @@
 ### アクセス権限（Security Rules）
 
 - 先生：全データを読み書きできる
-- 保護者：自分の子の studentId を持つデータだけ読める
+- 保護者：parentUid が自分の UID になっているデータ（自分の子の生徒・コマ）だけ読める
 - 保護者が書けるのは、申請の作成、自分の子のコマの休み設定、メッセージ送信の3つだけ
 - 料金（fee）は保護者が書き換えられないようにする
 - 先生アカウントはコンソールで手作業で作る。アプリから作れるのは role が parent の users だけにして、だれでも teacher になれる穴を作らない
 - 招待コードは、コードを知っていれば1件だけ読める（登録前の確認用）。一覧は先生だけが取れる
 - 保護者の初回登録では、users の作成と招待コードの使用済み化を同じバッチで書く。Rules の `get`（書き込み前）と `getAfter`（書き込み後）で、2つの書き込みがそろっているかをお互いに確かめる
+
+### 生徒と保護者のつなぎ方
+
+- `users.studentIds`（保護者→生徒）ではなく、`students.parentUid`（生徒→保護者）でつなぐ。先生は生徒の編集画面で保護者を選ぶだけでよく、users を書き換えずに済む
+- 同じ parentUid を lessons にもコピーする。Rules はドキュメントを1件ずつではなく「クエリ全体」で判定するので、保護者は `where("parentUid", "==", 自分のUID)` を付けて読む必要がある。コマに parentUid がないと、この条件で絞り込めない
+- 生徒の保護者を変えたら、その生徒のコマの parentUid もまとめて書き換える
 
 ## ログインと招待コード
 
@@ -100,7 +106,7 @@
 
 - 先生が発行する。8文字で、紛らわしい `0 O 1 I L` を除いた英大文字と数字（31文字）を使う。約8,500億通り
 - 乱数は推測されにくい `crypto.getRandomValues` で作る（`Math.random` は使わない）
-- 1回だけ使える。生徒との紐付け（studentIds）は、生徒登録（開発ステップ2）で先生が行う
+- 1回だけ使える。生徒との紐付けは、生徒登録（開発ステップ2）で先生が students.parentUid に保護者を選んで行う
 
 ### 保護者の登録の流れ
 
@@ -115,13 +121,32 @@
 - profile は `getDoc` ではなく `onSnapshot` で読み続ける。登録直後は「users がまだない」という読み込み結果が、作成後の結果より遅れて届き、上書きしてしまうことがあるため。role の変更も再読み込みなしで反映される
 - 画面の保護（未ログインなら /login へ移動）はブラウザ側で行う。Firebase のログイン状態はブラウザにしかないため。データは Security Rules で守るので、画面を無理やり表示されても中身は読めない
 
+### 画面を移動したときの状態
+
+- next.config.ts の `cacheComponents: true` により、一度開いた画面は閉じずに隠して残る（React の `<Activity>`）。戻ったときに入力中の値や「保存中…」がそのまま残る
+- 対策
+  - 送信中の表示（submitting）は、成功しても失敗しても `finally` で必ず戻す
+  - 新規登録フォームは、保存後に `key` を変えて作り直し、空の状態に戻す
+  - ログイン・登録の成功後はパスワード欄を空にする
+  - ログアウトは `window.location.href` でページごと読み込み直し、前の人の画面を残さない
+
+### 数値の入力欄
+
+- 単価などは `type="number"` ではなく `type="text"` ＋ `inputMode="numeric"` にし、入力中は文字列で持つ。`Number("")` が 0 になって空欄にできない問題と、日本語入力（全角数字）が入らない問題を避けるため
+- 全角数字の半角化と数字以外の除去は、欄から離れたとき（onBlur）と保存時に行う。入力の途中で値を書き換えると、日本語入力の表示が崩れるため
+
 ## 主要ロジック
 
 ### 1. レギュラーコマの自動生成
 
-- 生徒の regularSlots を保存したら、3か月先までの lessons を作る
-- 毎月1日に、空いた1か月分を足す
-- ドキュメントIDを「studentId_日付_開始時刻」にして、二重に作らない
+- 生徒を保存したら（新規・編集とも）、今日から3か月先までの lessons を作る
+- ドキュメントIDを「studentId_日付_開始時刻」（例：`abc123_2026-11-16_1700`）にして、二重に作らない
+- すでにあるコマは上書きしない（休みや振替の設定を消さないため）
+- 曜日や時間を変えて合わなくなった「未来の・予定のままの・通常コマ」は削除する。過去のコマ、休みにしたコマ、追加コマ・振替は残す
+- 作成・削除・parentUid の書き換えは1つのバッチでまとめて書く
+- 既存コマの読み込みは `where("studentId", "==", id)` だけにし、複合インデックスを作らずに済むようにする
+- 作る日付を計算する部分（`generateRegularLessons`）は Firestore を使わない関数に分け、読み書き（`syncRegularLessons`）と切り離す
+- 毎月1日に1か月分を足す処理は、Cloud Functions（Blazeプラン）が必要なので Issue #10 に回す。それまでは生徒を保存し直せば3か月先まで足される
 
 ### 2. 実施済みの自動判定
 
@@ -177,8 +202,8 @@ flowchart LR
 
 ## 開発ステップ
 
-- [ ] 1. 環境構築とログイン（先生／保護者の役割分け、招待コード）
-- [ ] 2. 生徒登録とレギュラーコマの自動生成、カレンダー表示
+- [x] 1. 環境構築とログイン（先生／保護者の役割分け、招待コード）
+- [x] 2. 生徒登録とレギュラーコマの自動生成、カレンダー表示
 - [ ] 3. 休みの設定と表示
 - [ ] 4. 出勤可能枠、申請、承認／拒否（追加コマ・振替）
 - [ ] 5. テスト日程の登録と色分け

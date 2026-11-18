@@ -33,7 +33,7 @@ export default function LoginPage() {
   //ログイン済みならホームへ移動
   useEffect(() => {
     if (!loading && user) {
-        router.replace("/");
+      router.replace("/");
     }
   }, [loading, user, router]);
 
@@ -43,6 +43,9 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      setPassword("");
+      setSubmitting(false);
+
     } catch (err) {
       setError(toMessage(err));
       setSubmitting(false);
@@ -66,7 +69,7 @@ export default function LoginPage() {
           required
           className="rounded border px-3 py-2"
         />
-        
+
         <input
           type="password"
           value={password}

@@ -1,15 +1,14 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 
-export function LogoutButton(){
-    const router = useRouter();
+export function LogoutButton() {
 
     async function handleClick() {
         await signOut(auth);
-        router.replace("/login");
+        window.location.href = "/login";
+
     }
 
     return (
