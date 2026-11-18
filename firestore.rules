@@ -80,11 +80,36 @@ service cloud.firestore {
 
     // --- lessons（1コマずつの予定と実績） ---
     match /lessons/{lessonId} {
+      // 自分の子のコマか（保護者用）
+      function isOwnLesson() {
+        return isSignedIn() && resource.data.parentUid == request.auth.uid;
+      }
+
+      // 予定 → 休み（保護者が休みにする）
+      function isParentCancel() {
+        return resource.data.status == 'scheduled'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.cancelledBy == 'parent';
+      }
+
+      // 休み → 予定（保護者が自分で休みにしたコマだけ戻せる）
+      function isParentRestore() {
+        return resource.data.status == 'cancelled'
+          && resource.data.cancelledBy == 'parent'
+          && request.resource.data.status == 'scheduled'
+          && request.resource.data.cancelledBy == null;
+      }
+
       // 先生は全部、保護者は自分の子のコマだけ読める
-      allow read: if isTeacher()
-        || (isSignedIn() && resource.data.parentUid == request.auth.uid);
-      // 書き込みは今は先生だけ（保護者の休み設定は Issue #3 で足す）
+      allow read: if isTeacher() || isOwnLesson();
+
+      // 先生は何でも書ける
       allow write: if isTeacher();
+
+      // 保護者は、自分の子のコマの「休み」と「休みの取り消し」だけ
+      allow update: if isOwnLesson()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledBy'])
+        && (isParentCancel() || isParentRestore());
     }
 
 
