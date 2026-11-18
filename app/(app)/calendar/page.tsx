@@ -7,11 +7,13 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
 import { LessonCalendar } from "@/components/LessonCalendar";
 import type { Lesson, LessonData, Student, StudentData } from "@/lib/types";
+import { useRouter } from "next/navigation";
 
 export default function CalendarPage() {
   const { user, profile } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const router = useRouter(); 
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -49,5 +51,5 @@ export default function CalendarPage() {
     };
   });
 
-  return <LessonCalendar events={events} />;
+  return <LessonCalendar events={events} onSelectDate={(date) => router.push(`/calendar/${date}`)} />;
 }
