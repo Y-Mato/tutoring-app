@@ -76,7 +76,7 @@
 | users | ログインする人（ドキュメントID＝Auth の UID） | role（teacher / parent）、name、studentIds（今は使っていない。登録時は空配列）、inviteCode（保護者のみ）、fcmToken |
 | invites | 保護者の招待コード（ドキュメントID＝コード） | used、usedBy、createdAt |
 | students | 生徒と契約内容 | name、color、parentUid、regularSlots（曜日・開始・終了の配列）、rates（通常コマ単価・分数、時給、計算単位） |
-| lessons | 1コマずつの予定と実績 | studentId、parentUid（students からコピー）、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy、makeupForId、fee |
+| lessons | 1コマずつの予定と実績 | studentId、parentUid（students からコピー）、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy（teacher / parent）、makeupForId、fee |
 | availabilities | 先生の出勤可能枠 | date、start、end |
 | requests | 追加コマ・振替の申請 | studentId、availabilityId、type（extra / makeup）、start、end、makeupForId、status（pending / approved / rejected）、reason |
 | records | 授業記録 | studentId、lessonId、date、condition（様子）、homework |
@@ -89,6 +89,8 @@
 - 先生：全データを読み書きできる
 - 保護者：parentUid が自分の UID になっているデータ（自分の子の生徒・コマ）だけ読める
 - 保護者が書けるのは、申請の作成、自分の子のコマの休み設定、メッセージ送信の3つだけ
+  - 休み設定で変えられるのは status と cancelledBy だけ（`diff().affectedKeys().hasOnly()` で確かめる）
+  - 予定 → 休み（cancelledBy は parent のみ）と、自分が休みにしたコマの 休み → 予定 だけを許す。先生が休みにしたコマは保護者から戻せない
 - 料金（fee）は保護者が書き換えられないようにする
 - 先生アカウントはコンソールで手作業で作る。アプリから作れるのは role が parent の users だけにして、だれでも teacher になれる穴を作らない
 - 招待コードは、コードを知っていれば1件だけ読める（登録前の確認用）。一覧は先生だけが取れる
@@ -168,7 +170,7 @@
 - 通常コマ・振替：1コマ2,000円
 - 追加コマ（テスト対策）：fee = 1500 × 分数 / 60（分数は60, 90, 120…の30分単位）
   - 例：1時間30分なら2,250円、2時間なら3,000円
-- 休みにしたコマは0円
+- 休みにしたコマは0円。ただし fee は書き換えず、料金を計算するときに cancelled のコマを数えないことで0円にする（保護者が fee に触らずに済み、休みを取り消せば元の金額に戻る）
 - 月の請求額＝その月の done のコマの fee の合計。これからの予定分は「見込み」として別に表示
 - fee はコマを作った時点で保存し、単価を変えても過去の金額が変わらないようにする
 
@@ -187,6 +189,18 @@ flowchart LR
   Q -- 拒否 --> NG["保護者に通知<br/>（理由は任意）"]
 ```
 
+### 6. 休みの設定と取り消し
+
+- カレンダーの日付かコマを押すと、日の詳細画面（`/calendar/2026-11-20`）に移る。その日のコマを `where("date", "==", 日付)` で読む（保護者は parentUid との2条件。どちらも `==` なので複合インデックスは不要）
+- 休みにすると status を cancelled にし、cancelledBy にだれが休みにしたか（teacher / parent）を入れる。保護者は1家庭なので、UID ではなく役割で足りる
+- 取り消すと status を scheduled、cancelledBy を null に戻す
+- ボタンを出す条件
+  - 休みにする：予定のコマで、日付が今日以降（過去のコマは休みにできない。ルールでは日付を比べず、画面側だけで制限する）
+  - 取り消す：休みのコマで、先生が見ているか、保護者が休みにしたコマ
+- 休みにするときは確認ダイアログを出す
+- カレンダーでは、休みのコマをグレー＋薄く＋取り消し線で表示する（FullCalendar の予定に `color` と `className` を渡す）
+- 振替は Issue #4（申請と承認）でまとめて作る
+
 ## 技術構成
 
 | 用途 | 使うもの |
@@ -204,7 +218,7 @@ flowchart LR
 
 - [x] 1. 環境構築とログイン（先生／保護者の役割分け、招待コード）
 - [x] 2. 生徒登録とレギュラーコマの自動生成、カレンダー表示
-- [ ] 3. 休みの設定と表示
+- [x] 3. 休みの設定と表示
 - [ ] 4. 出勤可能枠、申請、承認／拒否（追加コマ・振替）
 - [ ] 5. テスト日程の登録と色分け
 - [ ] 6. 料金計算（生徒別・合計・保護者の請求額）
