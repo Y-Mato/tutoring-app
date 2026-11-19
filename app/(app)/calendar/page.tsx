@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
 import { LessonCalendar } from "@/components/LessonCalendar";
 import { useRouter } from "next/navigation";
-import type { Availability, AvailabilityData, Lesson, LessonData, Student, StudentData } from "@/lib/types";
+import type { Availability, AvailabilityData, Lesson, LessonData, Student, StudentData, LessonRequest, LessonRequestData } from "@/lib/types";
 
 
 export default function CalendarPage() {
@@ -16,6 +16,7 @@ export default function CalendarPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const router = useRouter();
   const [availabilities, setAvailabilities] = useState<Availability[]>([]);
+  const [requests, setRequests] = useState<LessonRequest[]>([]);
 
 
   useEffect(() => {
@@ -38,11 +39,19 @@ export default function CalendarPage() {
     const unsubAvailabilities = onSnapshot(collection(db, "availabilities"), (snap) => {
       setAvailabilities(snap.docs.map((d) => ({ id: d.id, ...(d.data() as AvailabilityData) })));
     });
+    const requestsQuery: Query = isTeacher
+      ? collection(db, "requests")
+      : query(collection(db, "requests"), where("parentUid", "==", user.uid));
+    const unsubRequests = onSnapshot(requestsQuery, (snap) => {
+      setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as LessonRequestData) })));
+    });
+
 
     return () => {
       unsubStudents();
       unsubLessons();
       unsubAvailabilities();
+      unsubRequests();
     };
   }, [user, profile]);
 
@@ -70,8 +79,19 @@ export default function CalendarPage() {
     className: "bg-transparent! border-2! border-dashed! border-gray-400! text-gray-600!",
   }));
 
-  const events = [...availabilityEvents, ...lessonEvents];
+  // 承認待ちの申請 → 黄色の破線
+  const requestEvents: EventInput[] = requests.filter((req) => req.status === "pending").map((req) => {
+    const student = students.find((s) => s.id === req.studentId);
+    return {
+      id: req.id,
+      title: `承認待ち（${student?.name ?? "生徒"}）`,
+      start: `${req.date}T${req.start}`,
+      end: `${req.date}T${req.end}`,
+      className: "bg-yellow-50! border-2! border-dashed! border-yellow-500! text-yellow-800!",
+    };
+  });
 
+  const events = [...availabilityEvents, ...requestEvents, ...lessonEvents];   // ← requestEvents を足す
 
 
   return <LessonCalendar events={events} onSelectDate={(date) => router.push(`/calendar/${date}`)} />;

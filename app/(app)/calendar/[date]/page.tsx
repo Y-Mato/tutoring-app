@@ -6,12 +6,13 @@ import { useParams } from "next/navigation";
 import { collection, onSnapshot, query, where, type Query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
-import type { Availability, AvailabilityData, Lesson, LessonData, LessonStatus, Student, StudentData } from "@/lib/types";
+import type { Availability, AvailabilityData, Lesson, LessonData, LessonRequest, LessonRequestData, LessonStatus, Student, StudentData } from "@/lib/types";
 import { cancelLesson, restoreLesson } from "@/lib/cancelLesson";
 import { formatDate } from "@/lib/lessons";
 import { AvailabilityForm } from "@/components/AvailabilityForm";
 import { deleteAvailability } from "@/lib/availabilities";
 import { RequestForm } from "@/components/RequestForm";
+import { REQUEST_STATUS_CLASSES, REQUEST_STATUS_LABELS, REQUEST_TYPE_LABELS } from "@/lib/requests";
 
 
 const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -37,6 +38,8 @@ export default function DayPage() {
     const [openSlotId, setOpenSlotId] = useState<string | null>(null);   // 申請フォームを開いている枠
     const [busyId, setBusyId] = useState<string | null>(null);   // 処理中のコマのID
     const [error, setError] = useState<string | null>(null);
+    const [requests, setRequests] = useState<LessonRequest[]>([]);
+
 
 
     useEffect(() => {
@@ -62,11 +65,20 @@ export default function DayPage() {
             setAvailabilities(snap.docs.map((d) => ({ id: d.id, ...(d.data() as AvailabilityData) })));
         });
 
+        const requestsQuery: Query = isTeacher
+            ? query(collection(db, "requests"), where("date", "==", date))
+            : query(collection(db, "requests"), where("parentUid", "==", user.uid), where("date", "==", date));
+        const unsubRequests = onSnapshot(requestsQuery, (snap) => {
+            setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as LessonRequestData) })));
+        });
+
+
 
         return () => {
             unsubStudents();
             unsubLessons();
             unsubAvailabilities();
+            unsubRequests();
         };
 
     }, [user, profile, date]);
@@ -207,6 +219,28 @@ export default function DayPage() {
                 {isTeacher && <AvailabilityForm date={date} />}
 
             </section>
+
+            {requests.length > 0 && (
+                <section className="flex flex-col gap-2">
+                    <h2 className="font-bold">申請</h2>
+                    <ul className="flex flex-col gap-2">
+                        {requests.map((req) => {
+                            const student = students.find((s) => s.id === req.studentId);
+                            return (
+                                <li key={req.id} className="flex flex-wrap items-center gap-3 rounded border p-3">
+                                    <span>{req.start}〜{req.end}</span>
+                                    <span>{student?.name ?? "生徒"}</span>
+                                    <span className="text-sm text-gray-500">{REQUEST_TYPE_LABELS[req.type]}</span>
+                                    <span className={`ml-auto rounded px-2 py-0.5 text-xs ${REQUEST_STATUS_CLASSES[req.status]}`}>
+                                        {REQUEST_STATUS_LABELS[req.status]}
+                                    </span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </section>
+            )}
+
 
         </div>
     );
