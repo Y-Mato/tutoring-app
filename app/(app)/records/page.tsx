@@ -11,6 +11,8 @@ import type {
     TestResult, TestResultData,
 } from "@/lib/types";
 import { deleteTestResult, TEST_KIND_LABELS } from "@/lib/testResults";
+import { ScoreChart } from "@/components/ScoreChart";
+
 
 const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -139,7 +141,10 @@ export default function RecordsPage() {
                                     <span className="font-bold">{formatShortDate(r.date)} {r.name}</span>
                                     <span className="text-gray-500">{TEST_KIND_LABELS[r.kind]}</span>
                                     {isTeacher && (
-                                        <button onClick={() => deleteTestResult(r.id)} className="ml-auto text-red-600">削除</button>
+                                        <span className="ml-auto flex gap-3">
+                                            <Link href={`/records/results/${r.id}`} className="text-blue-600">編集</Link>
+                                            <button onClick={() => deleteTestResult(r.id)} className="text-red-600">削除</button>
+                                        </span>
                                     )}
                                 </div>
                                 {r.subjects.map((s) => (
@@ -157,6 +162,14 @@ export default function RecordsPage() {
                     </ul>
                 )}
             </section>
+
+            {studentResults.length > 0 && (
+                <section className="flex flex-col gap-2">
+                    <h2 className="font-bold">推移グラフ</h2>
+                    <ScoreChart results={studentResults} />
+                </section>
+            )}
+
 
         </div>
     );

@@ -40,6 +40,10 @@ export default function LessonRecordPage() {
         const r = recordSnap.data() as LessonRecordData;
         setCondition(r.condition);
         setHomework(r.homework);
+      } else {
+        // 記録がまだないコマ：前に開いた別のコマの入力が残らないように空にする
+        setCondition("");
+        setHomework("");
       }
       setLoading(false);
     }
