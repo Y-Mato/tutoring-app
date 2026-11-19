@@ -1,3 +1,5 @@
+import type { Role } from "@/components/AuthProvider"; 
+
 // レギュラーコマ（毎週の決まった時間）
 export type RegularSlot = {
   dayOfWeek: number; // 0=日, 1=月, ... 6=土（JavaScript の Date と同じ）
@@ -46,7 +48,7 @@ export type LessonData = {
   end: string;              // "18:20"
   type: LessonType;
   status: LessonStatus;
-  cancelledBy: string | null;
+  cancelledBy: Role | null;
   makeupForId: string | null;
   fee: number;              // 作った時点の料金（あとで単価を変えても変わらない）
 };
