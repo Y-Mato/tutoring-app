@@ -17,7 +17,7 @@ export async function syncExamParent(studentId: string, parentUid: string | null
   let count = 0;
 
   snap.docs.forEach((d) => {
-    if (d.data().paretUid !== parentUid) {
+    if (d.data().parentUid !== parentUid) {
       batch.update(d.ref, { parentUid });
       count++;
     }

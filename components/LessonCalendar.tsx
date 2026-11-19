@@ -20,6 +20,9 @@ export function LessonCalendar({
   onSelectDate: (date: string) => void;   // "2026-11-20" を受け取る
 }) {
   return (
+    // 今日のマスの色を消す（テスト期間の色と混ざって見分けにくくなるため）
+    // FullCalendar の色は CSS の変数で決まっているので、囲む要素で上書きする
+    <div style={{ ["--fc-classic-today" as string]: "transparent" }}>
     <FullCalendar
       plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, classicThemePlugin]}
       dateClick={(info) => onSelectDate(info.dateStr.slice(0,10))} 
@@ -28,10 +31,13 @@ export function LessonCalendar({
       initialView="dayGridMonth"
       headerToolbar={{ start: "prev,next today", center: "title", end: "dayGridMonth,timeGridWeek" }}
       height="auto"
-      allDaySlot={false}
+      // 今日はマスの色ではなく、日付を青い丸で示す（期間の色と混ざらないように）
+      dayCellTopInnerClass={(info) => (info.isToday ? "rounded-full bg-blue-600 px-2 font-bold text-white!" : "")}
+      dayHeaderInnerClass={(info) => (info.isToday ? "rounded-full bg-blue-600 px-2 font-bold text-white!" : "")}
       slotMinTime="08:00"
       slotMaxTime="22:00"
       events={events}
     />
+    </div>
   );
 }
