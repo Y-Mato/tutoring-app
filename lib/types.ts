@@ -138,3 +138,15 @@ export type TestResultData = {
 };
 
 export type TestResult = TestResultData & { id: string };
+
+// メッセージ（chats/{studentId}/messages コレクション）
+// 生徒ごとに1つのチャット。先生とその生徒の保護者がやり取りする
+export type MessageData = {
+  senderUid: string;
+  senderRole: Role;              // "teacher" か "parent"（だれのメッセージかを見分ける）
+  text: string;
+  createdAt: Timestamp | null;   // 送った時刻（送った直後、サーバーの時刻が届くまでは null のことがある）
+  readAt: Timestamp | null;      // 相手が読んだ時刻（まだなら null）
+};
+
+export type Message = MessageData & { id: string };

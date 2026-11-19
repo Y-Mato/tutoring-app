@@ -244,5 +244,44 @@ service cloud.firestore {
 
       allow delete: if isTeacher();
     }
+
+    // --- chats/{studentId}/messages（メッセージ。生徒ごとのチャット） ---
+    match /chats/{studentId}/messages/{messageId} {
+      // この生徒の保護者か（パスの studentId から生徒を読んで確かめる）
+      function isParentOfStudent() {
+        return isSignedIn()
+          && get(/databases/$(database)/documents/students/$(studentId)).data.parentUid == request.auth.uid;
+      }
+
+      // チャットに参加できる人：先生と、この生徒の保護者
+      function isMember() {
+        return isTeacher() || isParentOfStudent();
+      }
+
+      // 自分の役割と senderRole が合っているか（先生は 'teacher'、保護者は 'parent'）
+      function isMyRole(role) {
+        return (isTeacher() && role == 'teacher') || (!isTeacher() && role == 'parent');
+      }
+
+      allow read: if isMember();
+
+      // 送信：自分の名前で、作った直後の状態で
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['senderUid', 'senderRole', 'text', 'createdAt', 'readAt'])
+        && request.resource.data.senderUid == request.auth.uid
+        && isMyRole(request.resource.data.senderRole)
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.readAt == null;
+
+      // 既読にする：相手が送った、まだ読んでいないメッセージの readAt だけを、サーバーの時刻にする
+      allow update: if isMember()
+        && !isMyRole(resource.data.senderRole)
+        && resource.data.readAt == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+        && request.resource.data.readAt == request.time;
+    }
   }
 }
