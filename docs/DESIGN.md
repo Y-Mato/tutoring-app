@@ -51,7 +51,7 @@
 
 ## 画面一覧
 
-下部タブ4つ（ホーム／カレンダー／記録／メッセージ）を両側で共通にし、中身を役割で切り替える。先生だけ「設定」タブも出す（メッセージは Issue #8 で足す）。
+下部タブ4つ（ホーム／カレンダー／記録／メッセージ）を両側で共通にし、中身を役割で切り替える。先生だけ「設定」タブも出す。
 
 | 画面 | 先生側 | 保護者側 |
 | --- | --- | --- |
@@ -83,7 +83,7 @@
 | records | 授業記録（ドキュメントID＝コマのID。1コマに1つ） | studentId、parentUid（students からコピー）、lessonId、date、condition（様子）、homework |
 | exams | テスト日程（色分け用） | studentId、parentUid（students からコピー）、name、startDate、endDate |
 | testResults | テスト・模試の結果 | studentId、parentUid（students からコピー）、kind（regular / mock）、name、date、subjects（教科・点数・平均点・偏差値。平均点・偏差値は null 可）、judgements（志望校・判定） |
-| chats/{studentId}/messages | メッセージ | senderUid、text、createdAt、readAt |
+| chats/{studentId}/messages | メッセージ（生徒ごとのチャット） | senderUid、senderRole（teacher / parent）、text、createdAt、readAt（相手が読んだ時刻。まだなら null） |
 
 ### アクセス権限（Security Rules）
 
@@ -257,6 +257,19 @@ flowchart LR
 - **推移グラフ**（Recharts 3.10.1）：教科を選び、「点数（＋平均点の破線）」と「偏差値」を切り替える。偏差値のない回は飛ばして線をつなぐ（`connectNulls`）。グラフに `responsive` を付けて、画面の幅に合わせる（`ResponsiveContainer` は不要）
 - 生徒の保護者を変えたら、テスト日程・授業記録・テスト結果の parentUid をまとめて書き換える（`syncStudentParent`）
 
+### 8. メッセージ
+
+- 生徒ごとのチャット（`chats/{生徒のID}/messages`）。先生とその生徒の保護者がやり取りする。兄弟がいる家庭では生徒ごとに分かれる
+- **Rules**：パスの `{studentId}` から生徒を `get` で読み、その生徒の parentUid が自分かを確かめる。パスの値はクエリのときも決まっているので、一覧で読むときもこの確かめ方が使える（そのため、メッセージには parentUid をコピーしない）
+  - 送信：senderUid が自分、senderRole が自分の役割、本文1〜1000文字、createdAt はサーバーの時刻、readAt は null
+  - 既読：相手が送った、readAt が null のメッセージの readAt だけを、サーバーの時刻にできる
+  - 削除はだれもできない
+- **チャット画面**（`/messages/[生徒のID]`）：`orderBy("createdAt")` で古い順に読み続ける（リアルタイム）。送った直後は createdAt が null なので、`data({ serverTimestamps: "estimate" })` で手元の見積もり時刻を使う
+- **既読**：チャット画面でメッセージが届くたびに、相手から来た未読のメッセージの readAt をバッチでまとめて書く。自分のメッセージの下に、readAt があれば「既読」と出す。画面が `cacheComponents` で隠れている間は useEffect が止まるので、勝手に既読にならない
+- **一覧**（`/messages`、下部タブの「メッセージ」）：生徒ごとに、最後のメッセージ（`orderBy("createdAt", "desc")` ＋ `limit(1)`）と未読の数（`where("senderRole", "==", 相手)` ＋ `where("readAt", "==", null)` の件数）を出す。どちらも複合インデックスは不要。先生の一覧には、保護者が登録されている生徒だけを出す
+- `orderBy` や `where` のフィールド名は文字列なので、型チェックでは間違いが見つからない。`orderBy` に書いたフィールドを持たないドキュメントは結果に出てこないので、打ち間違えると何も表示されない
+- 新しいメッセージの通知は Issue #9 で作る
+
 ## 技術構成
 
 | 用途 | 使うもの |
@@ -279,7 +292,7 @@ flowchart LR
 - [x] 5. テスト日程の登録と色分け
 - [x] 6. 料金計算（生徒別・合計・保護者の請求額）
 - [x] 7. 授業記録、テスト結果の入力と推移グラフ
-- [ ] 8. メッセージ
+- [x] 8. メッセージ
 - [ ] 9. プッシュ通知とPWA化
 - [ ] 10. 保護者に実際に使ってもらい、感想をもらって直す
 
