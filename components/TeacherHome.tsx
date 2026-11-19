@@ -1,5 +1,6 @@
 import { InviteCodeIssuer } from "./InviteCodeIssuer";
 import { PendingRequests } from "./PendingRequests";
+import { IncomeSummary } from "./IncomeSummary";
 
 export function TeacherHome() {
   return (
@@ -11,11 +12,7 @@ export function TeacherHome() {
 
       <PendingRequests />
 
-
-      <section className="rounded border p-4">
-        <h2 className="font-bold">今月の収入合計</h2>
-        <p className="text-sm text-gray-500">準備中</p>
-      </section>
+      <IncomeSummary />
 
       <InviteCodeIssuer />
 

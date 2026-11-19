@@ -13,6 +13,7 @@ import { AvailabilityForm } from "@/components/AvailabilityForm";
 import { deleteAvailability } from "@/lib/availabilities";
 import { RequestForm } from "@/components/RequestForm";
 import { REQUEST_STATUS_CLASSES, REQUEST_STATUS_LABELS, REQUEST_TYPE_LABELS } from "@/lib/requests";
+import { displayStatus } from "@/lib/fees";
 
 
 const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -39,6 +40,7 @@ export default function DayPage() {
     const [busyId, setBusyId] = useState<string | null>(null);   // 処理中のコマのID
     const [error, setError] = useState<string | null>(null);
     const [requests, setRequests] = useState<LessonRequest[]>([]);
+    const [now] = useState(() => new Date());   // 画面を開いたときの時刻（描くたびに変わらないように）
 
 
 
@@ -90,7 +92,7 @@ export default function DayPage() {
         return <p>日付が正しくありません</p>;
     }
 
-    const today = formatDate(new Date());   // "2026-11-18"
+    const today = formatDate(now);
     const isTeacher = profile?.role === "teacher";
 
     async function handleCancel(lesson: Lesson) {
@@ -137,7 +139,8 @@ export default function DayPage() {
             ) : (
                 <ul className="flex flex-col gap-2">
                     {sorted.map((lesson) => {
-                        const canCancel = lesson.status === "scheduled" && lesson.date >= today;
+                        const status = displayStatus(lesson, now);
+                        const canCancel = status === "scheduled" && lesson.date >= today;
                         const canRestore = lesson.status === "cancelled" && (isTeacher || lesson.cancelledBy === "parent");
                         const busy = busyId === lesson.id;
                         const student = students.find((s) => s.id === lesson.studentId);
@@ -151,7 +154,7 @@ export default function DayPage() {
                                 />
                                 <span>{lesson.start}〜{lesson.end}</span>
                                 <span>{student?.name ?? "生徒"}</span>
-                                <span className="ml-auto text-sm text-gray-500">{STATUS_LABELS[lesson.status]}</span>
+                                <span className="ml-auto text-sm text-gray-500">{STATUS_LABELS[status]}</span>
 
                                 {canCancel && (
                                     <button
