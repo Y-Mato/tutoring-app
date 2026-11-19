@@ -112,6 +112,73 @@ service cloud.firestore {
         && (isParentCancel() || isParentRestore());
     }
 
+    // --- availabilities（先生の出勤可能枠） ---
+    function isDate(value) {
+      return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
 
+    function isTime(value) {
+      return value is string && value.matches('^[0-2][0-9]:[0-5][0-9]$');
+    }
+
+    match /availabilities/{availabilityId} {
+      // 保護者も空き枠を見て申請するので、ログインしていればだれでも読める
+      allow read: if isSignedIn();
+
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['date', 'start', 'end'])
+        && isDate(request.resource.data.date)
+        && isTime(request.resource.data.start)
+        && isTime(request.resource.data.end)
+        && request.resource.data.start < request.resource.data.end;
+
+      allow delete: if isTeacher();
+    }
+
+    // --- requests（追加コマ・振替の申請） ---
+    match /requests/{requestId} {
+      // 振替元のコマ：自分の子の、休みにしたコマか
+      function isMakeupSource(data) {
+        let lesson = get(/databases/$(database)/documents/lessons/$(data.makeupForId)).data;
+        return data.makeupForId is string
+          && lesson.studentId == data.studentId
+          && lesson.parentUid == request.auth.uid
+          && lesson.status == 'cancelled';
+      }
+
+      // 保護者の新しい申請として正しいか
+      function isValidNewRequest(data) {
+        let slot = get(/databases/$(database)/documents/availabilities/$(data.availabilityId)).data;
+        let student = get(/databases/$(database)/documents/students/$(data.studentId)).data;
+        return data.keys().hasOnly(['studentId', 'parentUid', 'availabilityId', 'type', 'date', 'start', 'end',
+                                    'makeupForId', 'status', 'reason', 'lessonId', 'createdAt'])
+          // だれの申請か：自分の子についての申請だけ
+          && data.parentUid == request.auth.uid
+          && student.parentUid == request.auth.uid
+          // 時間：選んだ枠の日付と同じで、枠の中に収まっている
+          && isTime(data.start) && isTime(data.end)
+          && data.start < data.end
+          && data.date == slot.date
+          && slot.start <= data.start
+          && data.end <= slot.end
+          // 種類：追加コマなら振替元なし、振替なら振替元のコマが正しい
+          && ((data.type == 'extra' && data.makeupForId == null)
+            || (data.type == 'makeup' && isMakeupSource(data)))
+          // 作った直後の状態
+          && data.status == 'pending'
+          && data.reason == null
+          && data.lessonId == null
+          && data.createdAt == request.time;
+      }
+
+      // 先生は全部、保護者は自分の申請だけ読める
+      allow read: if isTeacher()
+        || (isSignedIn() && resource.data.parentUid == request.auth.uid);
+
+      allow create: if isSignedIn() && isValidNewRequest(request.resource.data);
+
+      // 承認・拒否は先生だけ
+      allow update, delete: if isTeacher();
+    }
   }
 }
