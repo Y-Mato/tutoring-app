@@ -6,9 +6,11 @@ import { useParams } from "next/navigation";
 import { collection, onSnapshot, query, where, type Query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/components/AuthProvider";
-import type { Lesson, LessonData, LessonStatus, Student, StudentData } from "@/lib/types";
+import type { Availability, AvailabilityData, Lesson, LessonData, LessonStatus, Student, StudentData } from "@/lib/types";
 import { cancelLesson, restoreLesson } from "@/lib/cancelLesson";
 import { formatDate } from "@/lib/lessons";
+import { AvailabilityForm } from "@/components/AvailabilityForm";
+import { deleteAvailability } from "@/lib/availabilities";
 
 
 const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -30,6 +32,7 @@ export default function DayPage() {
     const { user, profile } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
     const [lessons, setLessons] = useState<Lesson[]>([]);
+    const [availabilities, setAvailabilities] = useState<Availability[]>([]);
     const [busyId, setBusyId] = useState<string | null>(null);   // 処理中のコマのID
     const [error, setError] = useState<string | null>(null);
 
@@ -51,11 +54,19 @@ export default function DayPage() {
         const unsubLessons = onSnapshot(lessonsQuery, (snap) => {
             setLessons(snap.docs.map((d) => ({ id: d.id, ...(d.data() as LessonData) })));
         });
+        const availabilitiesQuery = query(collection(db, "availabilities"), where("date", "==", date));
+
+        const unsubAvailabilities = onSnapshot(availabilitiesQuery, (snap) => {
+            setAvailabilities(snap.docs.map((d) => ({ id: d.id, ...(d.data() as AvailabilityData) })));
+        });
+
 
         return () => {
             unsubStudents();
             unsubLessons();
+            unsubAvailabilities();
         };
+
     }, [user, profile, date]);
 
     // 開始時刻の早い順に並べる（"17:00" のような文字列はそのまま比べられる）
@@ -118,46 +129,70 @@ export default function DayPage() {
                         const student = students.find((s) => s.id === lesson.studentId);
 
 
-                    return (
-                    <li key={lesson.id} className="flex flex-wrap items-center gap-3 rounded border p-3">
-                        <span
-                            className="inline-block h-3 w-3 rounded-full"
-                            style={{ backgroundColor: student?.color ?? "#9ca3af" }}
-                        />
-                        <span>{lesson.start}〜{lesson.end}</span>
-                        <span>{student?.name ?? "生徒"}</span>
-                        <span className="ml-auto text-sm text-gray-500">{STATUS_LABELS[lesson.status]}</span>
+                        return (
+                            <li key={lesson.id} className="flex flex-wrap items-center gap-3 rounded border p-3">
+                                <span
+                                    className="inline-block h-3 w-3 rounded-full"
+                                    style={{ backgroundColor: student?.color ?? "#9ca3af" }}
+                                />
+                                <span>{lesson.start}〜{lesson.end}</span>
+                                <span>{student?.name ?? "生徒"}</span>
+                                <span className="ml-auto text-sm text-gray-500">{STATUS_LABELS[lesson.status]}</span>
 
-                        {canCancel && (
-                            <button
-                                onClick={() => handleCancel(lesson)}
-                                disabled={busy}
-                                className="rounded border border-red-600 px-2 py-1 text-sm text-red-600 disabled:opacity-50"
-                            >
-                                休みにする
-                            </button>
-                        )}
-                        {canRestore && (
-                            <button
-                                onClick={() => handleRestore(lesson)}
-                                disabled={busy}
-                                className="rounded border px-2 py-1 text-sm disabled:opacity-50"
-                            >
-                                取り消す
-                            </button>
-                        )}
+                                {canCancel && (
+                                    <button
+                                        onClick={() => handleCancel(lesson)}
+                                        disabled={busy}
+                                        className="rounded border border-red-600 px-2 py-1 text-sm text-red-600 disabled:opacity-50"
+                                    >
+                                        休みにする
+                                    </button>
+                                )}
+                                {canRestore && (
+                                    <button
+                                        onClick={() => handleRestore(lesson)}
+                                        disabled={busy}
+                                        className="rounded border px-2 py-1 text-sm disabled:opacity-50"
+                                    >
+                                        取り消す
+                                    </button>
+                                )}
 
-                        {lesson.status === "cancelled" && lesson.cancelledBy && (
-                            <p className="w-full text-xs text-gray-500">
-                                （{lesson.cancelledBy === "teacher" ? "先生" : "保護者"}が休みにしました）
-                            </p>
-                        )}
-                    </li>
-                    );
+                                {lesson.status === "cancelled" && lesson.cancelledBy && (
+                                    <p className="w-full text-xs text-gray-500">
+                                        （{lesson.cancelledBy === "teacher" ? "先生" : "保護者"}が休みにしました）
+                                    </p>
+                                )}
+                            </li>
+                        );
 
-          })}
+                    })}
                 </ul>
             )}
+            <section className="flex flex-col gap-2">
+                <h2 className="font-bold">出勤可能枠</h2>
+
+                {availabilities.length === 0 ? (
+                    <p className="text-sm text-gray-500">この日の枠はありません</p>
+                ) : (
+                    <ul className="flex flex-col gap-2">
+                        {availabilities.map((slot) => (
+                            <li key={slot.id} className="flex items-center gap-3 rounded border border-dashed p-3">
+                                <span>{slot.start}〜{slot.end}</span>
+                                {isTeacher && (
+                                    <button onClick={() => deleteAvailability(slot.id)} className="ml-auto text-sm text-red-600">
+                                        削除
+                                    </button>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+
+                {isTeacher && <AvailabilityForm date={date} />}
+
+            </section>
+
         </div>
     );
 }
