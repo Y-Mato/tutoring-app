@@ -1,3 +1,5 @@
+import { MyRequests } from "./MyRequests";
+
 export function ParentHome() {
   return (
     <div className="flex flex-col gap-4">
@@ -15,6 +17,8 @@ export function ParentHome() {
         <h2 className="font-bold">今月の請求額</h2>
         <p className="text-sm text-gray-500">準備中</p>
       </section>
+
+      <MyRequests />
 
     </div>
   );
