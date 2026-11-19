@@ -78,7 +78,7 @@
 | students | 生徒と契約内容 | name、color、parentUid、regularSlots（曜日・開始・終了の配列）、rates（通常コマ単価・分数、時給、計算単位） |
 | lessons | 1コマずつの予定と実績 | studentId、parentUid（students からコピー）、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy（teacher / parent）、makeupForId、fee |
 | availabilities | 先生の出勤可能枠 | date、start、end |
-| requests | 追加コマ・振替の申請 | studentId、availabilityId、type（extra / makeup）、start、end、makeupForId、status（pending / approved / rejected）、reason |
+| requests | 追加コマ・振替の申請 | studentId、parentUid、availabilityId、type（extra / makeup）、date、start、end、makeupForId、status（pending / approved / rejected）、reason、lessonId（承認して作ったコマ）、createdAt |
 | records | 授業記録 | studentId、lessonId、date、condition（様子）、homework |
 | exams | テスト日程（色分け用） | studentId、name、startDate、endDate |
 | testResults | テスト・模試の結果 | studentId、kind（定期テスト / 模試）、name、date、subjects（教科・点数・平均点・偏差値）、judgements（志望校・判定） |
@@ -93,6 +93,13 @@
   - 予定 → 休み（cancelledBy は parent のみ）と、自分が休みにしたコマの 休み → 予定 だけを許す。先生が休みにしたコマは保護者から戻せない
 - 料金（fee）は保護者が書き換えられないようにする
 - 先生アカウントはコンソールで手作業で作る。アプリから作れるのは role が parent の users だけにして、だれでも teacher になれる穴を作らない
+- 出勤可能枠は、ログインしていればだれでも読める（保護者が空きを見て申請するため）。書けるのは先生だけ
+- 申請を作れるのは保護者で、次をすべて満たすときだけ
+  - 自分の子についての申請で、parentUid が自分
+  - 選んだ枠と同じ日で、枠の時間の中に収まっている
+  - 追加コマなら振替元なし。振替なら、振替元が「同じ生徒の、自分の子の、休みにしたコマ」
+  - status は pending、reason と lessonId は null、createdAt はサーバーの時刻
+- 申請の承認・却下（更新）は先生だけ
 - 招待コードは、コードを知っていれば1件だけ読める（登録前の確認用）。一覧は先生だけが取れる
 - 保護者の初回登録では、users の作成と招待コードの使用済み化を同じバッチで書く。Rules の `get`（書き込み前）と `getAfter`（書き込み後）で、2つの書き込みがそろっているかをお互いに確かめる
 
@@ -178,6 +185,19 @@
 
 承認時に「他のコマと時間が重なっていないか」を確認し、申請の更新とコマの作成をトランザクションでまとめて行う（2人が同じ枠を同時に申請しても壊れない）。
 
+- **出勤可能枠**：先生が日の詳細画面で登録・削除する。最低1時間（画面側で確認）。承認したあとも枠は残す（1つの枠から複数の申請が通ることがあるため。重なりは承認時に防ぐ）
+- **申請**：保護者が日の詳細画面で枠を選び、生徒・種類・時間を選ぶ。時間は枠の中から30分刻みで、最低1時間
+- **振替元の候補**：自分の子の休みにしたコマのうち、振替のコマがまだなく、承認待ち・承認済みの振替申請もないもの（却下された申請の振替元は、もう一度選べる）
+- **表示**：承認待ちの申請は、カレンダーに黄色の破線、日の詳細画面に「承認待ち」のバッジで出す。保護者のホームには、申請の結果（理由つき）を新しい順に出す
+- **承認の手順**（`approveRequest`）
+  1. 生徒を読む（料金と parentUid のため）
+  2. その日のコマをクエリで読み、休み以外のコマと時間が重なっていないか確かめる（A の開始 < B の終了、かつ B の開始 < A の終了）。振替なら、同じ振替元のコマがもうないかも確かめる
+  3. 料金を決める。追加コマは 時給 × 分 ÷ 60（四捨五入）、振替は通常コマの料金
+  4. トランザクションで「申請がまだ pending か」「同じIDのコマがないか」を確かめ、コマの作成と申請の承認（lessonId の保存）を同時に書く
+- **2 をトランザクションの外にした理由**：ブラウザ用の Firestore SDK のトランザクションでは、クエリが使えない（1件ずつの get だけ）。承認するのは先生1人なので、直前のクエリで確かめれば十分。二重承認はトランザクション内の status の確認で防ぐ
+- **却下**：理由は任意。`window.prompt` はブラウザによって使えないので、画面の中に入力欄を出す
+- **通知**は Issue #9 でまとめて作る
+
 ```mermaid
 flowchart LR
   Slot["出勤可能枠を登録<br/>（先生）"] --> Req["時間を選んで申請<br/>（保護者・追加/振替）"]
@@ -219,7 +239,7 @@ flowchart LR
 - [x] 1. 環境構築とログイン（先生／保護者の役割分け、招待コード）
 - [x] 2. 生徒登録とレギュラーコマの自動生成、カレンダー表示
 - [x] 3. 休みの設定と表示
-- [ ] 4. 出勤可能枠、申請、承認／拒否（追加コマ・振替）
+- [x] 4. 出勤可能枠、申請、承認／拒否（追加コマ・振替）
 - [ ] 5. テスト日程の登録と色分け
 - [ ] 6. 料金計算（生徒別・合計・保護者の請求額）
 - [ ] 7. 授業記録、テスト結果の入力と推移グラフ
