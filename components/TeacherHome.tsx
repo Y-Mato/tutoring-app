@@ -1,4 +1,5 @@
 import { InviteCodeIssuer } from "./InviteCodeIssuer";
+import { PendingRequests } from "./PendingRequests";
 
 export function TeacherHome() {
   return (
@@ -8,10 +9,8 @@ export function TeacherHome() {
         <p className="text-sm text-gray-500">準備中</p>
       </section>
 
-      <section className="rounded border p-4">
-        <h2 className="font-bold">承認待ちの申請</h2>
-        <p className="text-sm text-gray-500">準備中</p>
-      </section>
+      <PendingRequests />
+
 
       <section className="rounded border p-4">
         <h2 className="font-bold">今月の収入合計</h2>

@@ -1,4 +1,5 @@
-import type { Role } from "@/components/AuthProvider"; 
+import type { Timestamp } from "firebase/firestore";
+import type { Role } from "@/components/AuthProvider";
 
 // レギュラーコマ（毎週の決まった時間）
 export type RegularSlot = {
@@ -54,3 +55,34 @@ export type LessonData = {
 };
 
 export type Lesson = LessonData & { id: string };
+
+// 先生の出勤可能枠（availabilities コレクション）
+export type AvailabilityData = {
+  date: string;  // "2026-11-20"
+  start: string; // "13:00"
+  end: string;   // "18:00"
+};
+
+export type Availability = AvailabilityData & { id: string };
+
+// 追加コマ・振替の申請（requests コレクション）
+// 名前を Request にしないのは、ブラウザに最初からある Request（通信用）とぶつかるため
+export type RequestType = "extra" | "makeup";
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export type LessonRequestData = {
+  studentId: string;
+  parentUid: string;           // 申請した保護者（読めるかどうかの判定に使う）
+  availabilityId: string;      // どの出勤可能枠から選んだか
+  type: RequestType;
+  date: string;
+  start: string;
+  end: string;
+  makeupForId: string | null;  // 振替のとき：休みにしたコマのID
+  status: RequestStatus;
+  reason: string | null;       // 拒否の理由（任意）
+  lessonId: string | null;     // 承認して作ったコマのID
+  createdAt: Timestamp;
+};
+
+export type LessonRequest = LessonRequestData & { id: string };
