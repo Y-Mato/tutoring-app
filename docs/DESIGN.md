@@ -47,6 +47,7 @@
 - 提出物期間（テスト2週間前〜1週間前）：黄色の背景
 - 勉強期間（テスト1週間前〜前日）：赤系の背景
 - テスト日：太字＋アイコン
+- 今日：日付を青い丸で示す（マスの色は付けない。期間の色と混ざらないように）
 
 ## 画面一覧
 
@@ -80,7 +81,7 @@
 | availabilities | 先生の出勤可能枠 | date、start、end |
 | requests | 追加コマ・振替の申請 | studentId、parentUid、availabilityId、type（extra / makeup）、date、start、end、makeupForId、status（pending / approved / rejected）、reason、lessonId（承認して作ったコマ）、createdAt |
 | records | 授業記録 | studentId、lessonId、date、condition（様子）、homework |
-| exams | テスト日程（色分け用） | studentId、name、startDate、endDate |
+| exams | テスト日程（色分け用） | studentId、parentUid（students からコピー）、name、startDate、endDate |
 | testResults | テスト・模試の結果 | studentId、kind（定期テスト / 模試）、name、date、subjects（教科・点数・平均点・偏差値）、judgements（志望校・判定） |
 | chats/{studentId}/messages | メッセージ | senderUid、text、createdAt、readAt |
 
@@ -172,6 +173,17 @@
 | 勉強期間 | D−7日 〜 D−1日 | 赤系 |
 | テスト期間 | D 〜 最終日 | 太字＋アイコン |
 
+- **登録**：先生が生徒の編集画面の「テスト日程」で、テスト名・初日・最終日を登録・削除する（生徒ごと。学校が違えばテストの日も違うため）。追加・削除はその場で保存する
+- **parentUid**：lessons と同じく students からコピーし、保護者は `where("parentUid", "==", 自分のUID)` で読む。生徒の保護者を変えたら、その生徒のテストの parentUid もまとめて書き換える（`syncExamParent`）
+- **期間の計算**：`examPeriods(初日)` が、提出物期間と勉強期間の始まりと終わりを返す（Firestore を使わない関数）。日付の足し引きは `addDays`（`Date.setDate` を使うので、月をまたいでも正しく計算できる）
+- **期間が重なったとき**：生徒が2人いて期間が重なると、黄と赤が混ざってオレンジになってしまう。そこで、日付ごとに1つの期間に決めてから塗る。重なったら勉強期間を優先する（テストに近いため）
+- **カレンダーでの塗り方**（FullCalendar v7 で確かめたこと）
+  - 期間の色は背景の予定（`display: "background"`）で付ける。classic テーマは指定した色を15%だけ混ぜて塗るので、濃い色（黄 `#eab308`、赤 `#ef4444`）を指定する
+  - 時刻付きの背景予定は月表示に出ず、終日の背景予定は週表示だと終日の欄にしか出ない。そこで1日につき両方を作る
+  - `end` はその日を含まないので、翌日を指定する
+- **今日の表示**：今日のマスの色（標準では薄い黄色）は、提出物期間の黄色と混ざって見分けにくい。そこで、マスの色は消して（`--fc-classic-today` を透明に上書き）、日付を青い丸で示す
+- テスト期間は「📝 テスト名（生徒名）」の太字の終日予定にする。週表示でも見えるように、終日の欄（`allDaySlot`）を出す
+
 ### 4. 料金計算
 
 - 通常コマ・振替：1コマ2,000円
@@ -240,7 +252,7 @@ flowchart LR
 - [x] 2. 生徒登録とレギュラーコマの自動生成、カレンダー表示
 - [x] 3. 休みの設定と表示
 - [x] 4. 出勤可能枠、申請、承認／拒否（追加コマ・振替）
-- [ ] 5. テスト日程の登録と色分け
+- [x] 5. テスト日程の登録と色分け
 - [ ] 6. 料金計算（生徒別・合計・保護者の請求額）
 - [ ] 7. 授業記録、テスト結果の入力と推移グラフ
 - [ ] 8. メッセージ
