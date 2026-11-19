@@ -86,3 +86,15 @@ export type LessonRequestData = {
 };
 
 export type LessonRequest = LessonRequestData & { id: string };
+
+// テスト日程（exams コレクション）
+// 提出物期間・勉強期間は保存せず、表示するときに startDate から計算する
+export type ExamData = {
+  studentId: string;
+  parentUid: string | null;  // 保護者が読めるかどうかの判定に使う（students からコピー）
+  name: string;              // "2学期期末テスト"
+  startDate: string;         // "2026-12-01"（テスト初日 = D）
+  endDate: string;           // "2026-12-03"（テスト最終日）
+};
+
+export type Exam = ExamData & { id: string };
