@@ -174,6 +174,12 @@ export default function DayPage() {
                                         取り消す
                                     </button>
                                 )}
+                                {isTeacher && status === "done" && (
+                                    <Link href={`/records/lesson/${lesson.id}`} className="rounded border px-2 py-1 text-sm">
+                                        記録を書く
+                                    </Link>
+                                )}
+
 
                                 {lesson.status === "cancelled" && lesson.cancelledBy && (
                                     <p className="w-full text-xs text-gray-500">

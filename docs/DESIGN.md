@@ -51,7 +51,7 @@
 
 ## 画面一覧
 
-下部タブ4つ（ホーム／カレンダー／記録／メッセージ）を両側で共通にし、中身を役割で切り替える。
+下部タブ4つ（ホーム／カレンダー／記録／メッセージ）を両側で共通にし、中身を役割で切り替える。先生だけ「設定」タブも出す（メッセージは Issue #8 で足す）。
 
 | 画面 | 先生側 | 保護者側 |
 | --- | --- | --- |
@@ -80,9 +80,9 @@
 | lessons | 1コマずつの予定と実績 | studentId、parentUid（students からコピー）、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy（teacher / parent）、makeupForId、fee |
 | availabilities | 先生の出勤可能枠 | date、start、end |
 | requests | 追加コマ・振替の申請 | studentId、parentUid、availabilityId、type（extra / makeup）、date、start、end、makeupForId、status（pending / approved / rejected）、reason、lessonId（承認して作ったコマ）、createdAt |
-| records | 授業記録 | studentId、lessonId、date、condition（様子）、homework |
+| records | 授業記録（ドキュメントID＝コマのID。1コマに1つ） | studentId、parentUid（students からコピー）、lessonId、date、condition（様子）、homework |
 | exams | テスト日程（色分け用） | studentId、parentUid（students からコピー）、name、startDate、endDate |
-| testResults | テスト・模試の結果 | studentId、kind（定期テスト / 模試）、name、date、subjects（教科・点数・平均点・偏差値）、judgements（志望校・判定） |
+| testResults | テスト・模試の結果 | studentId、parentUid（students からコピー）、kind（regular / mock）、name、date、subjects（教科・点数・平均点・偏差値。平均点・偏差値は null 可）、judgements（志望校・判定） |
 | chats/{studentId}/messages | メッセージ | senderUid、text、createdAt、readAt |
 
 ### アクセス権限（Security Rules）
@@ -139,6 +139,8 @@
   - 新規登録フォームは、保存後に `key` を変えて作り直し、空の状態に戻す
   - ログイン・登録の成功後はパスワード欄を空にする
   - ログアウトは `window.location.href` でページごと読み込み直し、前の人の画面を残さない
+  - 編集画面は、読み込んだデータを「どの id のものか」と一緒に持ち、フォームに `key={id}` を付ける。別のデータを開いたときに、前のデータの入力が残らないようにするため
+  - 読み込んだときにデータがなければ、入力欄を空に戻す（授業記録：記録のないコマを開いたとき）
 
 ### 数値の入力欄
 
@@ -244,6 +246,17 @@ flowchart LR
 - カレンダーでは、休みのコマをグレー＋薄く＋取り消し線で表示する（FullCalendar の予定に `color` と `className` を渡す）
 - 振替は Issue #4（申請と承認）でまとめて作る
 
+### 7. 授業記録とテスト結果
+
+- **授業記録**：先生が、日の詳細画面で実施済みのコマの「記録を書く」から、様子と宿題を書く。ドキュメントIDをコマのIDにして `setDoc` で保存するので、1コマに記録は1つ（2回目からは編集になる）。Rules でも `lessonId == ドキュメントID` を確かめる
+- **テスト結果**：先生が「記録」タブの「結果を追加」から入力する。種類（定期テスト／模試）、テスト名、日付、教科ごとの結果（点数は必須、平均点・偏差値は空なら null）、志望校判定。追加・編集・削除ができる。追加と編集は同じフォームの部品（`TestResultForm`）を使う
+  - 数字の欄は `type="text"` ＋ `inputMode="decimal"` にして入力中は文字列で持ち、保存のときに数値にする。空欄の点数は NaN にして、数字でない入力と一緒にエラーにする（`Number("")` は 0 になってしまうため）
+  - 配列の中身（点数が数字かなど）は Rules では確かめられない（繰り返しが書けない）ので、フォーム側で確かめる。Rules では配列の件数だけ確かめる
+- **「記録」タブ**（`/records`）：生徒を選び、授業記録（新しい順）、テスト結果、推移グラフを並べる。保護者は同じ画面を見るだけで使う（編集・削除・追加のボタンは出さない）
+  - 先生は全部、保護者は parentUid が自分のものを1回だけ読み、選んだ生徒の分はアプリの中で絞る（生徒を切り替えるたびに読み直さないため）
+- **推移グラフ**（Recharts 3.10.1）：教科を選び、「点数（＋平均点の破線）」と「偏差値」を切り替える。偏差値のない回は飛ばして線をつなぐ（`connectNulls`）。グラフに `responsive` を付けて、画面の幅に合わせる（`ResponsiveContainer` は不要）
+- 生徒の保護者を変えたら、テスト日程・授業記録・テスト結果の parentUid をまとめて書き換える（`syncStudentParent`）
+
 ## 技術構成
 
 | 用途 | 使うもの |
@@ -265,7 +278,7 @@ flowchart LR
 - [x] 4. 出勤可能枠、申請、承認／拒否（追加コマ・振替）
 - [x] 5. テスト日程の登録と色分け
 - [x] 6. 料金計算（生徒別・合計・保護者の請求額）
-- [ ] 7. 授業記録、テスト結果の入力と推移グラフ
+- [x] 7. 授業記録、テスト結果の入力と推移グラフ
 - [ ] 8. メッセージ
 - [ ] 9. プッシュ通知とPWA化
 - [ ] 10. 保護者に実際に使ってもらい、感想をもらって直す

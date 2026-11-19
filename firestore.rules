@@ -200,5 +200,49 @@ service cloud.firestore {
 
       allow delete: if isTeacher();
     }
+
+    // --- records（授業記録。ドキュメントID = コマのID） ---
+    match /records/{recordId} {
+      // 先生は全部、保護者は自分の子の記録だけ読める
+      allow read: if isTeacher()
+        || (isSignedIn() && resource.data.parentUid == request.auth.uid);
+
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['studentId', 'parentUid', 'lessonId', 'date', 'condition', 'homework'])
+        && request.resource.data.studentId is string
+        && (request.resource.data.parentUid == null || request.resource.data.parentUid is string)
+        && request.resource.data.lessonId == recordId
+        && isDate(request.resource.data.date)
+        && request.resource.data.condition is string
+        && request.resource.data.condition.size() <= 2000
+        && request.resource.data.homework is string
+        && request.resource.data.homework.size() <= 2000;
+
+      allow delete: if isTeacher();
+    }
+
+    // --- testResults（テスト・模試の結果） ---
+    match /testResults/{resultId} {
+      // 先生は全部、保護者は自分の子の結果だけ読める
+      allow read: if isTeacher()
+        || (isSignedIn() && resource.data.parentUid == request.auth.uid);
+
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['studentId', 'parentUid', 'kind', 'name', 'date', 'subjects', 'judgements'])
+        && request.resource.data.studentId is string
+        && (request.resource.data.parentUid == null || request.resource.data.parentUid is string)
+        && request.resource.data.kind in ['regular', 'mock']
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 50
+        && isDate(request.resource.data.date)
+        && request.resource.data.subjects is list
+        && request.resource.data.subjects.size() > 0
+        && request.resource.data.subjects.size() <= 15
+        && request.resource.data.judgements is list
+        && request.resource.data.judgements.size() <= 10;
+
+      allow delete: if isTeacher();
+    }
   }
 }
