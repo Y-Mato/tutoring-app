@@ -180,5 +180,25 @@ service cloud.firestore {
       // 承認・拒否は先生だけ
       allow update, delete: if isTeacher();
     }
+
+    // --- exams（テスト日程） ---
+    match /exams/{examId} {
+      // 先生は全部、保護者は自分の子のテストだけ読める
+      allow read: if isTeacher()
+        || (isSignedIn() && resource.data.parentUid == request.auth.uid);
+
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['studentId', 'parentUid', 'name', 'startDate', 'endDate'])
+        && request.resource.data.studentId is string
+        && (request.resource.data.parentUid == null || request.resource.data.parentUid is string)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 50
+        && isDate(request.resource.data.startDate)
+        && isDate(request.resource.data.endDate)
+        && request.resource.data.startDate <= request.resource.data.endDate;
+
+      allow delete: if isTeacher();
+    }
   }
 }

@@ -29,9 +29,9 @@ export function MyRequests() {
     };
   }, [user]);
 
-  // 申請した日時の新しい順に10件（createdAt がまだ null のものは「今」として扱う）
+  // 申請した日時の新しい順に10件（createdAt がまだ null のもの＝送った直後のものは、一番新しいとして扱う）
   const recent = [...requests]
-    .sort((a, b) => (b.createdAt?.toMillis() ?? Date.now()) - (a.createdAt?.toMillis() ?? Date.now()))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER) - (a.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER))
     .slice(0, 10);
 
   return (
