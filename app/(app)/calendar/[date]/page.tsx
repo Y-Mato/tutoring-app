@@ -11,6 +11,7 @@ import { cancelLesson, restoreLesson } from "@/lib/cancelLesson";
 import { formatDate } from "@/lib/lessons";
 import { AvailabilityForm } from "@/components/AvailabilityForm";
 import { deleteAvailability } from "@/lib/availabilities";
+import { RequestForm } from "@/components/RequestForm";
 
 
 const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -33,6 +34,7 @@ export default function DayPage() {
     const [students, setStudents] = useState<Student[]>([]);
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [availabilities, setAvailabilities] = useState<Availability[]>([]);
+    const [openSlotId, setOpenSlotId] = useState<string | null>(null);   // 申請フォームを開いている枠
     const [busyId, setBusyId] = useState<string | null>(null);   // 処理中のコマのID
     const [error, setError] = useState<string | null>(null);
 
@@ -177,12 +179,25 @@ export default function DayPage() {
                 ) : (
                     <ul className="flex flex-col gap-2">
                         {availabilities.map((slot) => (
-                            <li key={slot.id} className="flex items-center gap-3 rounded border border-dashed p-3">
+                            <li key={slot.id} className="flex flex-wrap items-center gap-3 rounded border border-dashed p-3">
                                 <span>{slot.start}〜{slot.end}</span>
                                 {isTeacher && (
                                     <button onClick={() => deleteAvailability(slot.id)} className="ml-auto text-sm text-red-600">
                                         削除
                                     </button>
+                                )}
+                                {!isTeacher && openSlotId !== slot.id && (
+                                    <button onClick={() => setOpenSlotId(slot.id)} className="ml-auto rounded border px-2 py-1 text-sm">
+                                        申請する
+                                    </button>
+                                )}
+                                {openSlotId === slot.id && user && (
+                                    <RequestForm
+                                        slot={slot}
+                                        students={students}
+                                        parentUid={user.uid}
+                                        onDone={() => setOpenSlotId(null)}
+                                    />
                                 )}
                             </li>
                         ))}
