@@ -98,3 +98,43 @@ export type ExamData = {
 };
 
 export type Exam = ExamData & { id: string };
+
+// 授業記録（records コレクション）。1コマに1つ（ドキュメントID = コマのID）
+// 名前を Record にしないのは、TypeScript に最初からある Record<K, V> 型とぶつかるため
+export type LessonRecordData = {
+  studentId: string;
+  parentUid: string | null;  // 保護者が読めるかどうかの判定に使う（students からコピー）
+  lessonId: string;
+  date: string;              // コマの日付（並べ替え用）
+  condition: string;         // その日の様子
+  homework: string;          // 宿題
+};
+
+export type LessonRecord = LessonRecordData & { id: string };
+
+// テスト・模試の結果（testResults コレクション）
+export type TestKind = "regular" | "mock";   // 定期テスト / 模試
+
+export type SubjectScore = {
+  subject: string;             // "数学"
+  score: number;               // 点数
+  average: number | null;      // 平均点（分からなければ null）
+  deviation: number | null;    // 偏差値（定期テストにはないことが多いので null も可）
+};
+
+export type Judgement = {
+  school: string;  // 志望校
+  grade: string;   // 判定（"A" など）
+};
+
+export type TestResultData = {
+  studentId: string;
+  parentUid: string | null;
+  kind: TestKind;
+  name: string;              // "第2回 全国模試"
+  date: string;              // "2026-11-08"
+  subjects: SubjectScore[];
+  judgements: Judgement[];
+};
+
+export type TestResult = TestResultData & { id: string };
