@@ -10,6 +10,7 @@ export function TabBar({ role }: { role: Role }) {
   const tabs = [
     { href: "/", label: "ホーム" },
     { href: "/calendar", label: "カレンダー" },
+    { href: "/records", label: "記録" },
     ...(role === "teacher" ? [{ href: "/settings", label: "設定" }] : []),
 
   ];

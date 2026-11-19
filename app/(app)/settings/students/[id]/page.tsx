@@ -8,7 +8,7 @@ import { StudentForm } from "@/components/StudentForm";
 import type { StudentData } from "@/lib/types";
 import { syncRegularLessons } from "@/lib/syncLessons";
 import { ExamSection } from "@/components/ExamSection";
-import { syncExamParent } from "@/lib/exams";
+import { syncStudentParent } from "@/lib/syncStudentParent";
 
 export default function EditStudentPage() {
     const router = useRouter();
@@ -30,7 +30,7 @@ export default function EditStudentPage() {
     async function handleUpdate(values: StudentData) {
         await updateDoc(doc(db, "students", id), values);
         await syncRegularLessons(id, values);
-        await syncExamParent(id, values.parentUid);
+        await syncStudentParent(id, values.parentUid);
 
         router.push("/settings");
     }
