@@ -1,5 +1,6 @@
 import { MyRequests } from "./MyRequests";
 import { MonthlyBill } from "./MonthlyBill";
+import { NotificationSetting } from "./NotificationSetting";
 
 export function ParentHome() {
   return (
@@ -18,6 +19,7 @@ export function ParentHome() {
 
       <MyRequests />
 
+      <NotificationSetting />
     </div>
   );
 }

@@ -32,6 +32,13 @@ service cloud.firestore {
         && request.resource.data.inviteCode is string
         && get(invitePath(request.resource.data.inviteCode)).data.used == false
         && getAfter(invitePath(request.resource.data.inviteCode)).data.usedBy == uid;
+
+      // 通知のトークンを保存する：自分の users の fcmTokens だけを書き換えられる（端末ごとに1つ。多くても10台まで）
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens'])
+        && request.resource.data.fcmTokens is list
+        && request.resource.data.fcmTokens.size() <= 10;
     }
 
     // --- invites（招待コード） ---

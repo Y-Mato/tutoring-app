@@ -74,7 +74,7 @@
 
 | コレクション | 役割 | 主なフィールド |
 | --- | --- | --- |
-| users | ログインする人（ドキュメントID＝Auth の UID） | role（teacher / parent）、name、studentIds（今は使っていない。登録時は空配列）、inviteCode（保護者のみ）、fcmToken |
+| users | ログインする人（ドキュメントID＝Auth の UID） | role（teacher / parent）、name、studentIds（今は使っていない。登録時は空配列）、inviteCode（保護者のみ）、fcmTokens（通知を送る端末のトークンの配列） |
 | invites | 保護者の招待コード（ドキュメントID＝コード） | used、usedBy、createdAt |
 | students | 生徒と契約内容 | name、color、parentUid、regularSlots（曜日・開始・終了の配列）、rates（通常コマ単価・分数、時給、計算単位） |
 | lessons | 1コマずつの予定と実績 | studentId、parentUid（students からコピー）、date、start、end、type（regular / extra / makeup）、status（scheduled / cancelled / done）、cancelledBy（teacher / parent）、makeupForId、fee |
@@ -102,6 +102,7 @@
   - status は pending、reason と lessonId は null、createdAt はサーバーの時刻
 - 申請の承認・却下（更新）は先生だけ
 - 招待コードは、コードを知っていれば1件だけ読める（登録前の確認用）。一覧は先生だけが取れる
+- users の更新で変えられるのは fcmTokens だけ（自分のドキュメントのみ。端末の数は10個まで）。role などを自分で書き換えられないようにする
 - 保護者の初回登録では、users の作成と招待コードの使用済み化を同じバッチで書く。Rules の `get`（書き込み前）と `getAfter`（書き込み後）で、2つの書き込みがそろっているかをお互いに確かめる
 
 ### 生徒と保護者のつなぎ方
@@ -268,7 +269,29 @@ flowchart LR
 - **既読**：チャット画面でメッセージが届くたびに、相手から来た未読のメッセージの readAt をバッチでまとめて書く。自分のメッセージの下に、readAt があれば「既読」と出す。画面が `cacheComponents` で隠れている間は useEffect が止まるので、勝手に既読にならない
 - **一覧**（`/messages`、下部タブの「メッセージ」）：生徒ごとに、最後のメッセージ（`orderBy("createdAt", "desc")` ＋ `limit(1)`）と未読の数（`where("senderRole", "==", 相手)` ＋ `where("readAt", "==", null)` の件数）を出す。どちらも複合インデックスは不要。先生の一覧には、保護者が登録されている生徒だけを出す
 - `orderBy` や `where` のフィールド名は文字列なので、型チェックでは間違いが見つからない。`orderBy` に書いたフィールドを持たないドキュメントは結果に出てこないので、打ち間違えると何も表示されない
-- 新しいメッセージの通知は Issue #9 で作る
+- 新しいメッセージの通知は「9. プッシュ通知と PWA」を参照
+
+### 9. プッシュ通知と PWA
+
+- **PWA**：`app/manifest.ts`（名前・アイコン・`display: "standalone"`）とアイコン（192・512・apple-icon）を置く。iPhone は「ホーム画面に追加」したときだけ Web の通知を使えるため
+- **トークンの保存**（`lib/notifications.ts`）：通知の許可をもらい、`/sw.js` を登録して、`navigator.serviceWorker.ready` を待ってから `getToken` する（待たないと Safari で止まる）。トークンは `users.fcmTokens` に `arrayUnion` で足す。1人が複数の端末を使えるように配列にする
+  - 「許可しますか？」は、まだ許可されていないときだけ聞く。Safari はボタンを押したとき以外に聞くと、許可済みでも「許可されていない」と返すため
+  - 許可済みの端末では、ホームを開くたびにトークンを保存し直す（トークンが変わることがあるため）
+- **送る側**（`functions/src/index.ts`、Cloud Functions v2、東京リージョン）：Firestore の書き込みをきっかけに動く
+  | きっかけ | 送る相手 | 押したときに開く画面 |
+  | --- | --- | --- |
+  | 申請が作られた | 先生 | ホーム |
+  | 申請が承認・却下された（pending から変わったときだけ） | 申請した保護者 | 承認：その日のカレンダー／却下：ホーム |
+  | コマが予定 → 休みになった | 休みにしなかった方 | その日のカレンダー |
+  | メッセージが届いた | 相手 | そのチャット |
+  - 使えなくなったトークン（アプリを消した端末など）は、送ったときのエラーで見つけて fcmTokens から消す
+- **表示する側**（`public/sw.js`）：Functions からは `data`（title・body・link）だけを送り、表示は Service Worker が決める
+  - そのチャットを画面に出している（`visibilityState === "visible"`）ときは通知を出さない。`focused` だと別のアプリを触っている間に false になるので使わない
+  - Safari は「届いたら必ず通知を表示する」決まりがあるので、音なしで出してすぐ消す。それでも一瞬見えることがあるが、許可を外されないことを優先して受け入れる
+  - 新しい sw.js はすぐ入れ替える（`skipWaiting` ＋ `clients.claim`）。古いものが残ると、直した動きが反映されない
+- **Blaze プラン**：Cloud Functions に必要。この規模なら無料枠に収まるが、念のため予算アラートを設定した
+- **公開**：Vercel。ブランチを push するとプレビューができるので、iPhone での確認はプレビューの URL で行う。環境変数は Production・Preview・Development の全部に入れる
+- 確かめ方の注意：Chrome のシークレットウィンドウでは通知は必ず拒否される。開発者ツールの Service Workers で「Offline」にチェックが入っていると、新しい sw.js が待ったままになる
 
 ## 技術構成
 
@@ -281,7 +304,7 @@ flowchart LR
 | グラフ | Recharts |
 | 通知 | Firebase Cloud Messaging（iPhoneはホーム画面に追加した場合のみ） |
 | 定期処理・通知送信 | Cloud Functions（Blazeプランが必要だが、この規模なら無料枠内） |
-| 公開 | Vercel または Firebase Hosting |
+| 公開 | Vercel |
 
 ## 開発ステップ
 
@@ -293,7 +316,7 @@ flowchart LR
 - [x] 6. 料金計算（生徒別・合計・保護者の請求額）
 - [x] 7. 授業記録、テスト結果の入力と推移グラフ
 - [x] 8. メッセージ
-- [ ] 9. プッシュ通知とPWA化
+- [x] 9. プッシュ通知とPWA化
 - [ ] 10. 保護者に実際に使ってもらい、感想をもらって直す
 
 ## 進め方のルール（Claude Code向け）

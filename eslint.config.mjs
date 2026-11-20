@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cloud Functions は別のプロジェクト（functions/ の中で型チェックする）
+    "functions/**",
   ]),
 ]);
 
