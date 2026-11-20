@@ -1,6 +1,7 @@
 import { InviteCodeIssuer } from "./InviteCodeIssuer";
 import { PendingRequests } from "./PendingRequests";
 import { IncomeSummary } from "./IncomeSummary";
+import { NotificationSetting } from "./NotificationSetting";
 
 export function TeacherHome() {
   return (
@@ -15,6 +16,8 @@ export function TeacherHome() {
       <IncomeSummary />
 
       <InviteCodeIssuer />
+      
+      <NotificationSetting />
 
     </div>
   );

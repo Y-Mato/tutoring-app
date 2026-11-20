@@ -18,6 +18,6 @@ const missing = Object.entries(firebaseConfig)
 if (missing.length > 0) {
     throw new Error(`Firebaseの設定が足りません: ${missing.join(",")} (.env.local を確認) `);
 }
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
